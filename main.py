@@ -3,25 +3,24 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from starlette.middleware.sessions import SessionMiddleware
+from datetime import datetime
+from itsdangerous import URLSafeTimedSerializer
+from fastapi import Cookie
+
 import hashlib
 import uvicorn
 import logging
 import mysql.connector
-from starlette.middleware.sessions import SessionMiddleware
 import os
 import json
-from datetime import datetime
-# Add this for secure cookie management
-from itsdangerous import URLSafeTimedSerializer
-
-from fastapi import Cookie
-
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import random
+import asyncio
 
-# Read the supersecret.json from the directory /super_secret_stuff
+# This contains very sensitive information and configuration details that should not be shared.
 SUPER_SECRET_FILE = os.path.join("super_secret_stuff", "supersecret.json")
 
 
@@ -30,33 +29,45 @@ def load_super_secret(file_path):
         return json.load(file)
 
 
+# Continuing what was said above, this is necessary for:
+# Sending verification codes, Initializing Database and tracking User Sessions.
 super_secret_data = load_super_secret(SUPER_SECRET_FILE)
 
+# As you can see here, we use the super secret file to get the email address and password.
 EMAIL_ADDRESS = super_secret_data["verification"][0]["email_sender"]
 EMAIL_PASSWORD = super_secret_data["verification"][0]["password"]
+
+# This is a dictionary that will store the verification codes for each email.
 VERIFICATION_CODES = {}
 
+# This has little to no use now because we're now using bootstrap for the frontend.
+# But it's still here because I don't know whether some files are still using it.
 version = f"{int(datetime.now().timestamp())}" + f"{random.randint(1, 1000)}"
 
-def send_verification_email(to_email, code):
+
+async def send_verification_email(to_email, code):
     try:
-        # Create the email
         msg = MIMEMultipart()
         msg['From'] = EMAIL_ADDRESS
         msg['To'] = to_email
         msg['Subject'] = "Your Verification Code"
-        # body = Your verification code is {code} <- bold. and before and after the code should be the skull emoji.
         body = f"Your verification code is {code}."
         msg.attach(MIMEText(body, 'plain'))
 
-        # Connect to Gmail and send email
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
+        # Run the SMTP operations in a separate thread
+        await asyncio.to_thread(send_email_sync, msg)
+
         print("Verification email sent successfully.")
     except Exception as e:
         print(f"Error sending email: {e}")
+
+
+def send_email_sync(msg):
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.send_message(msg)
+
 
 def verification_confirmed(to_email):
     try:
@@ -309,11 +320,10 @@ async def resend_code(data: dict):
 
     if email in VERIFICATION_CODES:
         verification_code = VERIFICATION_CODES[email]["code"]
-        send_verification_email(email, verification_code)
+        asyncio.create_task(send_verification_email(email, verification_code))
         return JSONResponse({"message": "Verification code resent."}, status_code=200)
     else:
         return JSONResponse({"message": "Email not found."}, status_code=404)
-
 
 
 @app.post("/signup")
@@ -324,17 +334,20 @@ async def read_signup(user: User):
     if existing_user:
         return JSONResponse({"message": "Email already exists"}, status_code=400)
 
-    # Generate and send verification code
+    # Generate and store verification code
     verification_code = f"{random.randint(100000, 999999)}"
     VERIFICATION_CODES[user.email] = {
         "code": verification_code,
         "user_data": user.dict()  # Store user data temporarily
     }
-    send_verification_email(user.email, verification_code)
 
-    # Redirect to the verification page
-    response = RedirectResponse(url=f"/signup_verification?email={user.email}", status_code=303)
-    return response
+    # Send email asynchronously
+    asyncio.create_task(send_verification_email(user.email, verification_code))
+
+    # Redirect to the verification page immediately
+    return RedirectResponse(url=f"/signup_verification?email={user.email}", status_code=303)
+
+
 
 
 @app.post("/login")
