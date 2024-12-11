@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Important Announcements</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Navbar Styling */
+        .navbar {
+            background-color: #f8f9fa;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0 0 10px 10px;
+        }
+
+        /* Announcement Card Styling */
+        .announcement-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .announcement-card h5 {
+            font-size: 1.25rem;
+            color: #0056b3;
+            margin-bottom: 10px;
+        }
+
+        .announcement-card p {
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .announcement-card a {
+            text-decoration: none;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .announcement-card a:hover {
+            color: #0056b3;
+            text-decoration: underline;
+        }
+
+        /* Pagination Styling */
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .pagination-button {
+            margin: 0 5px;
+            padding: 8px 16px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .pagination-button.active {
+            background-color: #0056b3;
+        }
+
+        .pagination-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Back to Homepage Button */
+        .home-button {
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 50%;
+            padding: 5px 10px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-primary d-flex flex-column min-vh-100">
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand sticky-top">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+        <!-- D.B.B Logo -->
+        <a href="/homepage" class="navbar-brand mb-0 fw-bold text-primary" style="font-size: 1.5rem; text-decoration: none;">D.B.B</a>
+        <!-- Feedback and Logout Buttons -->
+        <div class="d-flex">
+            <button id="feedback-button" class="btn btn-outline-primary me-2 shadow-sm" onclick="window.open('/feedback', '_blank')">Feedback</button>
+            <button id="logout-button" class="btn btn-outline-primary shadow-sm">Logout</button>
+        </div>
+    </div>
+    </nav>
+
+    <!-- Page Content -->
+    <div class="container bg-white shadow rounded py-4 px-3 mt-3">
+        <h1 class="text-primary text-center mb-4" style="font-size: 1.75rem;">Important Announcements</h1>
+        <div id="content"></div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const itemsPerPage = 10;
+        let currentPage = 1;
+        let announcements = [];
+
+        async function loadData() {
+            try {
+                const response = await fetch(`/static/data/data.json?cache_bust=${new Date().getTime()}`);
+                const data = await response.json();
+                announcements = data.important_announcements;
+                renderPage(currentPage);
+            } catch (error) {
+                console.error("Error loading data:", error);
+            }
+        }
+
+        function renderPage(page) {
+            const contentContainer = document.getElementById('content');
+            contentContainer.innerHTML = '';
+            const start = (page - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const items = announcements.slice(start, end);
+
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'announcement-card';
+
+                const title = document.createElement('h5');
+                title.textContent = item.title;
+                card.appendChild(title);
+
+                if (item.date) {
+                    const date = document.createElement('p');
+                    date.textContent = item.date;
+                    date.className = 'mb-2 text-muted';
+                    card.appendChild(date);
+                }
+
+                if (item.link) {
+                    const link = document.createElement('a');
+                    link.href = item.link;
+                    link.target = '_blank';
+                    link.textContent = 'Read More';
+                    card.appendChild(link);
+                }
+
+                contentContainer.appendChild(card);
+            });
+
+            renderPagination(page);
+        }
+
+        function renderPagination(currentPage) {
+            const paginationContainer = document.querySelector('.pagination-container');
+            if (paginationContainer) {
+                paginationContainer.remove();
+            }
+
+            const newPagination = document.createElement('div');
+            newPagination.className = 'pagination-container';
+
+            // Add "Back to Homepage" Button
+            const homeButton = document.createElement('button');
+            homeButton.className = 'home-button';
+            homeButton.textContent = '←';
+            homeButton.addEventListener('click', () => {
+                window.location.href = '/homepage';
+            });
+            newPagination.appendChild(homeButton);
+
+            // Add Pagination Buttons
+            const totalPages = Math.ceil(announcements.length / itemsPerPage);
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.className = 'pagination-button';
+                if (i === currentPage) {
+                    pageButton.classList.add('active');
+                }
+                pageButton.textContent = i;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    renderPage(currentPage);
+                });
+                newPagination.appendChild(pageButton);
+            }
+
+            document.querySelector('.container').appendChild(newPagination);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('logout-button').addEventListener('click', async () => {
+                const response = await fetch('/logout', { method: 'POST' });
+                if (response.ok) {
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                }
+            });
+
+            loadData();
+        });
+    </script>
+</body>
+</html>

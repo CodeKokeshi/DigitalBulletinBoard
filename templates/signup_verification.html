@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signup Verification</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-primary d-flex justify-content-center align-items-center vh-100">
+    <div class="container">
+        <div class="card mx-auto shadow-lg" style="max-width: 400px; border-radius: 10px;">
+            <div class="card-body p-4">
+                <h2 class="text-primary text-center mb-3" style="font-size: 1.75rem;">Verification</h2>
+                <p class="text-center mb-3">A verification code has been sent to your email. Please enter it below to complete your signup.</p>
+                <form id="verification-form" class="flex-column mb-3">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="verification-code" placeholder="Enter verification code" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Verify</button>
+                </form>
+                <p class="text-center resend">Didn't receive the code? <a href="#" id="resend-code" class="text-decoration-none text-primary fw-bold">Resend Code</a></p>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const email = urlParams.get('email');
+
+            if (!email) {
+                alert('Email parameter missing in the URL. Cannot proceed.');
+                return;
+            }
+
+            const form = document.getElementById('verification-form');
+            const resendLink = document.getElementById('resend-code');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const code = document.getElementById('verification-code').value;
+
+                const response = await fetch('/verify_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code }),
+                });
+
+                if (response.redirected) {
+                    window.location.href = response.url; // Redirect to homepage or login
+                } else {
+                    const error = await response.json();
+                    alert('Verification failed: ' + error.message);
+                }
+            });
+
+            resendLink.addEventListener('click', async (e) => {
+                e.preventDefault();
+
+                const response = await fetch('/resend-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+
+                if (response.ok) {
+                    alert('A new verification code has been sent.');
+                } else {
+                    alert('Failed to resend code. Please try again later.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
