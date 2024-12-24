@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, Cookie
+from fastapi import FastAPI, Request, Depends, HTTPException, Form, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -110,7 +110,6 @@ database = mysql.connector.connect(
 cursor = database.cursor()
 
 logging.basicConfig(level=logging.DEBUG)
-app = FastAPI()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
