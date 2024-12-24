@@ -1,0 +1,17 @@
+/* Custom styles for image responsiveness */
+.announcement-image {
+    max-width: 100%; /* Constrain width to the container */
+    max-height: 60vh; /* Limit height to 60% of the viewport */
+    object-fit: contain; /* Ensure the image scales while maintaining aspect ratio */
+    display: block; /* Center image in its container */
+    margin: 20px auto; /* Add spacing around the image */
+}
+
+#comments {
+    word-wrap: break-word; /* Break long words if necessary */
+    word-break: break-word; /* Ensure compatibility with all browsers */
+}
+
+#comments .border-bottom {
+    overflow-wrap: break-word; /* Additional compatibility */
+}
