@@ -1,14 +1,15 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Form
+from fastapi import FastAPI, Request, Depends, HTTPException, status, Form, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer
-from fastapi import Cookie
 
 import hashlib
 import uvicorn
@@ -23,11 +24,10 @@ import asyncio
 # This contains very sensitive information and configuration details that should not be shared.
 SUPER_SECRET_FILE = os.path.join("super_secret_stuff", "supersecret.json")
 
-
+# Just loads the json file for database and other stuff.
 def load_super_secret(file_path):
     with open(file_path, "r") as file:
         return json.load(file)
-
 
 # Continuing what was said above, this is necessary for:
 # Sending verification codes, Initializing Database and tracking User Sessions.
@@ -44,6 +44,7 @@ VERIFICATION_CODES = {}
 # But it's still here because I don't know whether some files are still using it.
 version = f"{int(datetime.now().timestamp())}" + f"{random.randint(1, 1000)}"
 
+# Sends verification codes to email address depending whether for resetting password or signing up.
 async def send_verification_email(to_email, code):
     try:
         msg = MIMEMultipart()
@@ -60,14 +61,14 @@ async def send_verification_email(to_email, code):
     except Exception as e:
         print(f"Error sending email: {e}")
 
-
+# Another part of email sending.
 def send_email_sync(msg):
     with smtplib.SMTP('smtp.gmail.com', 587) as server:
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.send_message(msg)
 
-
+# I'm not sure whether I'm still using this one.
 def verification_confirmed(to_email):
     try:
         # Create the email
@@ -88,7 +89,6 @@ def verification_confirmed(to_email):
         print("Verification email sent successfully.")
     except Exception as e:
         print(f"Error sending email: {e}")
-
 
 SECRET_KEY = super_secret_data["SuperSecret"][0]["SuperSecretKey"]
 serializer = URLSafeTimedSerializer(SECRET_KEY)
@@ -124,10 +124,8 @@ class User(BaseModel):
     email: str
     password: str
 
-
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 # Load data.json
 DATA_FILE = os.path.join("static", "data", "data.json")
@@ -136,15 +134,12 @@ def load_data(file_path):
     with open(file_path, "r") as file:
         return json.load(file)
 
-
 # Save data to JSON
 def save_data(file_path, data):
     with open(file_path, "w") as file:
         json.dump(data, file, indent=2)
 
-
 announcement_data = load_data(DATA_FILE)
-from fastapi import HTTPException
 
 def get_current_user(session_token: str = Cookie(None)):
     if session_token is None:
@@ -189,7 +184,6 @@ async def display_announcement(announcement_id: int, request: Request, session_t
                 )
     raise HTTPException(status_code=404, detail="Announcement not found")
 
-# main.py
 @app.get("/feedback", response_class=HTMLResponse)
 async def read_feedback(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("feedback.html", {"request": request, "user": user, "version": version})
@@ -238,7 +232,6 @@ async def submit_feedback(request: Request, user: str = Depends(get_current_user
 
     return JSONResponse({"message": "Feedback submitted successfully."}, status_code=200)
 
-
 @app.post("/announcement/{announcement_id}/comment")
 async def add_comment(announcement_id: int, comment: str = Form(...), user: str = Depends(get_current_user)):
     cursor.execute("SELECT full_name FROM users WHERE email = %s", (user,))
@@ -268,7 +261,6 @@ async def add_comment(announcement_id: int, comment: str = Form(...), user: str 
 
     raise HTTPException(status_code=404, detail="Announcement not found")
 
-
 @app.delete("/announcement/{announcement_id}/comment/{comment_index}")
 async def delete_comment(announcement_id: int, comment_index: int, user: str = Depends(get_current_user)):
     announcement_data = load_data(DATA_FILE)
@@ -283,7 +275,6 @@ async def delete_comment(announcement_id: int, comment_index: int, user: str = D
                     save_data(DATA_FILE, announcement_data)
                     return JSONResponse({"message": "Comment deleted successfully"})
     raise HTTPException(status_code=404, detail="Announcement or comment not found")
-
 
 @app.post("/announcement/{announcement_id}/like")
 async def like_announcement(announcement_id: int, user: str = Depends(get_current_user)):
@@ -301,11 +292,9 @@ async def like_announcement(announcement_id: int, user: str = Depends(get_curren
                 return JSONResponse({"likes": announcement["likes"]["amount"]})
     raise HTTPException(status_code=404, detail="Announcement not found")
 
-
 @app.get("/signup_verification", response_class=HTMLResponse)
 async def signup_verification_page(request: Request):
     return templates.TemplateResponse("signup_verification.html", {"request": request})
-
 
 @app.post("/verify_code")
 async def verify_code(data: dict):
@@ -331,7 +320,6 @@ async def verify_code(data: dict):
     else:
         return JSONResponse({"message": "Invalid verification code"}, status_code=400)
 
-
 @app.post("/resend-code")
 async def resend_code(data: dict):
     email = data.get('email')
@@ -344,7 +332,6 @@ async def resend_code(data: dict):
         return JSONResponse({"message": "Verification code resent."}, status_code=200)
     else:
         return JSONResponse({"message": "Email not found."}, status_code=404)
-
 
 @app.post("/signup")
 async def read_signup(user: User):
@@ -367,7 +354,6 @@ async def read_signup(user: User):
     # Redirect to the verification page immediately
     return RedirectResponse(url=f"/signup_verification?email={user.email}", status_code=303)
 
-
 @app.post("/login")
 async def read_login(request: Request):
     credentials = await request.json()
@@ -387,7 +373,6 @@ async def read_login(request: Request):
 
     return JSONResponse({"message": "Login failed"}, status_code=401)
 
-
 @app.get("/login_form", response_class=HTMLResponse)
 async def read_login(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "version": version})
@@ -400,32 +385,26 @@ async def read_root(request: Request):
 async def read_signup_form(request: Request):
     return templates.TemplateResponse("signup.html", {"request": request, "version": version})
 
-
 # opens up in new tab when terms and conditions is clicked
 @app.get("/terms", response_class=HTMLResponse)
 async def read_terms(request: Request):
     return templates.TemplateResponse("terms.html", {"request": request})
 
-
 @app.get("/homepage", response_class=HTMLResponse)
 async def read_homepage(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("homepage.html", {"request": request, "user": user, "version": version})
-
 
 @app.get("/upcoming", response_class=HTMLResponse)
 async def read_upcoming(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("upcoming.html", {"request": request, "user": user, "version": version})
 
-
 @app.get("/important", response_class=HTMLResponse)
 async def read_important(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("important.html", {"request": request, "user": user, "version": version})
 
-
 @app.get("/milestones", response_class=HTMLResponse)
 async def read_milestones(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("milestones.html", {"request": request, "user": user, "version": version})
-
 
 @app.post("/logout")
 async def logout():
@@ -433,11 +412,9 @@ async def logout():
     response.delete_cookie(key="session_token")
     return response
 
-
 @app.get("/forgot_password", response_class=HTMLResponse)
 async def forgot_password_page(request: Request):
     return templates.TemplateResponse("forgot_password.html", {"request": request, "version": version})
-
 
 @app.post("/forgot_password/send_verification_code")
 async def forgot_password_send_verification_code(email: str = Form(...)):
@@ -451,13 +428,11 @@ async def forgot_password_send_verification_code(email: str = Form(...)):
     await send_verification_email(email, verification_code)
     return JSONResponse({"message": "Verification code sent"}, status_code=200)
 
-
 @app.post("/forgot_password/verify_code")
 async def forgot_password_verify_code(email: str = Form(...), code: str = Form(...)):
     if email in VERIFICATION_CODES and VERIFICATION_CODES[email] == code:
         return JSONResponse({"message": "Code verified"}, status_code=200)
     return JSONResponse({"message": "Invalid verification code"}, status_code=400)
-
 
 @app.post("/forgot_password/reset_password")
 async def forgot_password_reset_password(email: str = Form(...), new_password: str = Form(...)):
@@ -469,7 +444,6 @@ async def forgot_password_reset_password(email: str = Form(...), new_password: s
 @app.get("/archives", response_class=HTMLResponse)
 async def read_archives(request: Request, user: str = Depends(get_current_user)):
     return templates.TemplateResponse("archived.html", {"request": request, "user": user, "version": version})
-
 
 @app.get("/archives/{archive_id}", response_class=HTMLResponse)
 async def read_archives_section(archive_id: int, request: Request, user: str = Depends(get_current_user)):
@@ -494,10 +468,6 @@ async def read_archives_section(archive_id: int, request: Request, user: str = D
                 )
     raise HTTPException(status_code=404, detail="Announcement not found")
 
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
@@ -509,7 +479,6 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse({"detail": exc.errors()}, status_code=400)
-
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
