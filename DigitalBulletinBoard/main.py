@@ -37,7 +37,7 @@ super_secret_data = load_super_secret(SUPER_SECRET_FILE)
 EMAIL_ADDRESS = super_secret_data["verification"][0]["email_sender"]
 EMAIL_PASSWORD = super_secret_data["verification"][0]["password"]
 
-# This is a dictionary that will store the verification codes for each email.
+# This is a dictionary that will store the verification codes for each email. I don't really know how it works though.
 VERIFICATION_CODES = {}
 
 # This has little to no use now because we're now using bootstrap for the frontend.
