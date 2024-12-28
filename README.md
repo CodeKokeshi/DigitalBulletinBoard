@@ -111,3 +111,5 @@ Contributions are welcome! To contribute:
 3. Commit your changes and push the branch.
 4. Submit a pull request.
 
+## Progress 
+- **Look at my progress here: ** [Google Docs](https://docs.google.com/document/d/1nL0r36_9jjFdAg2A9QooSL9ZzLkWgHU4BLUp_R2xO0o/edit?tab=t.0)
